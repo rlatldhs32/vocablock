@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "sion.vocablock.vocablock"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 34
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -24,8 +24,8 @@ android {
         applicationId = "sion.vocablock.vocablock"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        minSdk = 24
+        targetSdk = 33
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

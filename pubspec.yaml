@@ -34,6 +34,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.6 # Example: included by default
   speech_to_text: ^7.0.0 # Add speech_to_text dependency
+  flutter_tts: ^3.8.5 # Text-to-speech for pronouncing words
 
 dev_dependencies:
   flutter_test:

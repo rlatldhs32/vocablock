@@ -1,18 +1,42 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'lock_screen.dart'; // Import the lock screen
 
+// Method channel for communication with native code
+const platformChannel = MethodChannel('sion.vocablock.vocablock/lockscreen');
+
 void main() {
+  // Ensure Flutter is initialized
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    _setupMethodChannel();
+  }
+
+  // Set up method channel to receive messages from native code
+  void _setupMethodChannel() {
+    platformChannel.setMethodCallHandler((call) async {
+      // Handle any method calls from native code if needed
+      return null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'VocabLock', // App title
+      title: 'VocabLock',
       theme: ThemeData(
         // This is the theme of your application.
         //
@@ -33,7 +57,8 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const LockScreen(), // Start with the lock screen
+      // Always start with the lock screen
+      home: const LockScreen(),
       debugShowCheckedModeBanner: false, // Remove debug banner
     );
   }
