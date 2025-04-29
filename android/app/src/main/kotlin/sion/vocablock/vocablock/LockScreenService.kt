@@ -66,44 +66,46 @@ class LockScreenService : Service() {
     }
     
     private fun startForegroundService() {
-        val channelId = 
+        val channelId = "vocablock_lock_service"
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channelName = "VocabLock Service"
-            val chan = NotificationChannel(
-                "vocablock_lock_service",
-                channelName,
-                NotificationManager.IMPORTANCE_LOW
-            )
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(chan)
-            "vocablock_lock_service"
-        } else {
-            ""
+            // Only create the channel if it doesn't already exist
+            val existingChannel = manager.getNotificationChannel(channelId)
+            if (existingChannel == null) {
+                val channelName = "VocabLock Service"
+                val importance = NotificationManager.IMPORTANCE_HIGH
+                val channel = NotificationChannel(channelId, channelName, importance).apply {
+                    lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                }
+                manager.createNotificationChannel(channel)
+            }
         }
-
+        // Build the persistent notification
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
             .setOngoing(true)
+            .setAutoCancel(false)
             .setSmallIcon(android.R.drawable.ic_lock_lock)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(getString(R.string.lock_screen_notification))
-            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(Notification.CATEGORY_SERVICE)
-
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+        
+        // Start foreground with the notification
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Android 10(Q) 이상에서는 foregroundServiceType 사용
             startForeground(
-                1, 
+                1,
                 notificationBuilder.build(),
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
             )
         } else {
-            // Android 9 이하에서는 기존 방식 사용
             startForeground(1, notificationBuilder.build())
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("VocabLock", "LockScreenService - onStartCommand")
+        startForegroundService()
         return START_STICKY
     }
 
@@ -126,6 +128,17 @@ class LockScreenService : Service() {
         handler.removeCallbacks(serviceWatchdog)
         
         // 서비스 재시작 시도
+        val restartIntent = Intent(applicationContext, LockScreenService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            applicationContext.startForegroundService(restartIntent)
+        } else {
+            applicationContext.startService(restartIntent)
+        }
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        Log.d("VocabLock", "LockScreenService - onTaskRemoved: restarting service")
         val restartIntent = Intent(applicationContext, LockScreenService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             applicationContext.startForegroundService(restartIntent)

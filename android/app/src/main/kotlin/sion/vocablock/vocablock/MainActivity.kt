@@ -8,21 +8,30 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
+import android.view.View
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.FlutterEngineCache
 import io.flutter.plugin.common.MethodChannel
 import android.app.KeyguardManager
+import android.os.Handler
+import android.os.Looper
 
 class MainActivity: FlutterActivity() {
     private val DEVICE_ADMIN_REQUEST = 1
     private val CHANNEL = "sion.vocablock.vocablock/lockscreen"
     private var isLockScreenMode = false
     
+    override fun provideFlutterEngine(context: Context): FlutterEngine? {
+        return FlutterEngineCache.getInstance().get("pre_warmed_engine")
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         
         // Set up method channel
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+        val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        channel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "isLockScreenMode" -> {
                     result.success(isLockScreenMode)
@@ -40,6 +49,8 @@ class MainActivity: FlutterActivity() {
                 }
             }
         }
+        // Request Flutter to pick a new random word on each engine configuration
+        channel.invokeMethod("newWord", null)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -76,27 +87,9 @@ class MainActivity: FlutterActivity() {
     }
     
     private fun unlockDevice() {
-        // Dismiss keyguard (this might work on some devices)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(false)
-        } else {
-            // For older API versions
-            try {
-                @Suppress("DEPRECATION")
-                window.clearFlags(0x00080000) // WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD value
-            } catch (e: Exception) {
-                Log.e("VocabLock", "Error clearing flags: ${e.message}")
-            }
-        }
-        
-        // Try to use keyguard manager to dismiss keyguard
-        // This requires DISABLE_KEYGUARD permission
-        val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            keyguardManager.requestDismissKeyguard(this, null)
-        }
-        
-        Log.d("VocabLock", "Unlocking device")
+        // 사용자 정의 잠금 UI를 종료하고, 시스템 잠금화면(또는 이전 화면)으로 복귀
+        Log.d("VocabLock", "Finishing custom lock UI, returning to underlying lock screen or home")
+        finish()
     }
     
     private fun startLockScreenService() {
@@ -156,20 +149,16 @@ class MainActivity: FlutterActivity() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
                 setShowWhenLocked(true)
                 setTurnScreenOn(true)
-                
-                // Try to dismiss keyguard (API 26+)
-                val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
-                keyguardManager.requestDismissKeyguard(this, null)
             } else {
-                // For older API versions use integer constants
                 try {
                     @Suppress("DEPRECATION")
-                    val DISMISS_KEYGUARD = 0x00080000 // WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
                     val SHOW_WHEN_LOCKED = 0x00000080 // WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
                     val TURN_SCREEN_ON = 0x00200000 // WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
-                    
-                    window.addFlags(DISMISS_KEYGUARD or SHOW_WHEN_LOCKED or TURN_SCREEN_ON or 
-                        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    window.addFlags(
+                        SHOW_WHEN_LOCKED or
+                        TURN_SCREEN_ON or
+                        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                    )
                 } catch (e: Exception) {
                     Log.e("VocabLock", "Error setting window flags: ${e.message}")
                 }

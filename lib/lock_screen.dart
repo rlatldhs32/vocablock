@@ -15,7 +15,7 @@ class LockScreen extends StatefulWidget {
   State<LockScreen> createState() => _LockScreenState();
 }
 
-class _LockScreenState extends State<LockScreen> {
+class _LockScreenState extends State<LockScreen> with WidgetsBindingObserver {
   // TOEFL vocabulary words with Korean meanings
   final List<Map<String, String>> _wordList = [
     {'word': 'abate', 'meaning': '감소하다, 약화되다'},
@@ -64,6 +64,14 @@ class _LockScreenState extends State<LockScreen> {
   @override
   void initState() {
     super.initState();
+    // Register lifecycle observer
+    WidgetsBinding.instance.addObserver(this);
+    // Handle 'newWord' event from native side to randomize the displayed word
+    platformChannel.setMethodCallHandler((call) async {
+      if (call.method == 'newWord') {
+        _setRandomWord();
+      }
+    });
     _initSpeech();
     _initTts();
     _setRandomWord(); // Set initial random word
@@ -71,8 +79,19 @@ class _LockScreenState extends State<LockScreen> {
 
   @override
   void dispose() {
+    // Unregister lifecycle observer
+    WidgetsBinding.instance.removeObserver(this);
     _flutterTts.stop();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // Each time app resumes (e.g., after screen on), pick a new word
+      _setRandomWord();
+    }
   }
 
   // Initialize text-to-speech
@@ -198,11 +217,13 @@ class _LockScreenState extends State<LockScreen> {
       _recognizedWords = recognized; // Update state for UI display
       print("Recognized: $_recognizedWords");
 
-      // Check if the recognized word matches the current word AND it's the final result
+      // Check if the first letter of recognized word matches the first letter of current word AND it's the final result
       if (!_isListening &&
           result.finalResult &&
-          recognized == _currentWord.toLowerCase()) {
-        print("Correct word spoken! Unlocking...");
+          recognized.isNotEmpty &&
+          _currentWord.isNotEmpty &&
+          recognized[0] == _currentWord.toLowerCase()[0]) {
+        print("First letter matches! Unlocking...");
         _unlockDevice();
       }
     });

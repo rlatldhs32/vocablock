@@ -13,7 +13,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <application
         android:label="vocablock"
-        android:name="${applicationName}"
+        android:name=".VocabLockApp"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
@@ -73,6 +73,7 @@
             android:name=".LockScreenService"
             android:enabled="true"
             android:exported="false"
+            android:stopWithTask="false"
             android:foregroundServiceType="dataSync|mediaPlayback">
         </service>
         
