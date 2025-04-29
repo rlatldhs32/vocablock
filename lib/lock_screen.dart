@@ -66,7 +66,7 @@ class _LockScreenState extends State<LockScreen> with WidgetsBindingObserver {
     super.initState();
     // Register lifecycle observer
     WidgetsBinding.instance.addObserver(this);
-    // Handle 'newWord' event from native side to randomize the displayed word
+    // Handle 'newWord' event from native side to randomize the displayed word and start listening
     platformChannel.setMethodCallHandler((call) async {
       if (call.method == 'newWord') {
         _setRandomWord();
@@ -89,7 +89,7 @@ class _LockScreenState extends State<LockScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
-      // Each time app resumes (e.g., after screen on), pick a new word
+      // Each time app resumes (e.g., after screen on), pick a new word and start listening
       _setRandomWord();
     }
   }
@@ -217,9 +217,8 @@ class _LockScreenState extends State<LockScreen> with WidgetsBindingObserver {
       _recognizedWords = recognized; // Update state for UI display
       print("Recognized: $_recognizedWords");
 
-      // Check if the first letter of recognized word matches the first letter of current word AND it's the final result
-      if (!_isListening &&
-          result.finalResult &&
+      // Check if first letter of recognized word matches first letter of current word when it's the final result
+      if (result.finalResult &&
           recognized.isNotEmpty &&
           _currentWord.isNotEmpty &&
           recognized[0] == _currentWord.toLowerCase()[0]) {

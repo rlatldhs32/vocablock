@@ -21,7 +21,8 @@ class MainActivity: FlutterActivity() {
     private val DEVICE_ADMIN_REQUEST = 1
     private val CHANNEL = "sion.vocablock.vocablock/lockscreen"
     private var isLockScreenMode = false
-    
+    private lateinit var channel: MethodChannel  // class-level MethodChannel for Flutter communication
+
     override fun provideFlutterEngine(context: Context): FlutterEngine? {
         return FlutterEngineCache.getInstance().get("pre_warmed_engine")
     }
@@ -29,8 +30,8 @@ class MainActivity: FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         
-        // Set up method channel
-        val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        // Set up method channel for communication
+        channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
         channel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "isLockScreenMode" -> {
@@ -56,7 +57,7 @@ class MainActivity: FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Check if app is being started from lock screen
+        // Track screen off from intent
         isLockScreenMode = intent.getBooleanExtra("STARTED_FROM_LOCK", false)
         
         Log.d("VocabLock", "MainActivity onCreate - isLockScreenMode: $isLockScreenMode")
@@ -77,15 +78,21 @@ class MainActivity: FlutterActivity() {
         super.onResume()
         Log.d("VocabLock", "MainActivity - onResume")
         
-        // Check if service is running and restart if needed
-        ensureLockScreenServiceRunning()
-        
         // Setup lock screen mode if needed
         if (isLockScreenMode || checkIfPhoneLocked()) {
             setupLockScreenMode()
         }
     }
     
+    // Handle new intents when activity is already running to refresh overlay
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        Log.d("VocabLock", "MainActivity - onNewIntent, requesting new word")
+        // Invoke Dart callback to refresh word and start listening
+        channel.invokeMethod("newWord", null)
+    }
+
     private fun unlockDevice() {
         // 사용자 정의 잠금 UI를 종료하고, 시스템 잠금화면(또는 이전 화면)으로 복귀
         Log.d("VocabLock", "Finishing custom lock UI, returning to underlying lock screen or home")
