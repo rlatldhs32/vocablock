@@ -24,11 +24,15 @@ class MainActivity: FlutterActivity() {
     private lateinit var channel: MethodChannel  // class-level MethodChannel for Flutter communication
 
     override fun provideFlutterEngine(context: Context): FlutterEngine? {
-        return FlutterEngineCache.getInstance().get("pre_warmed_engine")
+        val cachedEngine = FlutterEngineCache.getInstance().get(VocabLockApp.ENGINE_ID)
+        Log.d("VocabLock", "provideFlutterEngine: ${if (cachedEngine != null) "Using cached engine" else "No cached engine found"}")
+        return cachedEngine
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        
+        Log.d("VocabLock", "configureFlutterEngine called")
         
         // Set up method channel for communication
         channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
@@ -50,8 +54,17 @@ class MainActivity: FlutterActivity() {
                 }
             }
         }
-        // Request Flutter to pick a new random word on each engine configuration
-        channel.invokeMethod("newWord", null)
+        
+        // Use a slight delay to ensure Flutter is ready before requesting a new word
+        Handler(Looper.getMainLooper()).postDelayed({
+            Log.d("VocabLock", "Invoking newWord from configureFlutterEngine")
+            try {
+                // Request Flutter to pick a new random word on each engine configuration
+                channel.invokeMethod("newWord", null)
+            } catch (e: Exception) {
+                Log.e("VocabLock", "Error invoking newWord: ${e.message}")
+            }
+        }, 500) // 500ms delay to ensure Flutter is ready
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -81,6 +94,16 @@ class MainActivity: FlutterActivity() {
         // Setup lock screen mode if needed
         if (isLockScreenMode || checkIfPhoneLocked()) {
             setupLockScreenMode()
+            
+            // Refresh the word when resumed
+            Handler(Looper.getMainLooper()).postDelayed({
+                Log.d("VocabLock", "Invoking newWord from onResume")
+                try {
+                    channel.invokeMethod("newWord", null)
+                } catch (e: Exception) {
+                    Log.e("VocabLock", "Error invoking newWord from onResume: ${e.message}")
+                }
+            }, 300)
         }
     }
     
@@ -88,9 +111,25 @@ class MainActivity: FlutterActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        
+        // Check if this is from lock screen
+        val fromLock = intent.getBooleanExtra("STARTED_FROM_LOCK", false)
+        if (fromLock) {
+            isLockScreenMode = true
+            setupLockScreenMode()
+        }
+        
         Log.d("VocabLock", "MainActivity - onNewIntent, requesting new word")
-        // Invoke Dart callback to refresh word and start listening
-        channel.invokeMethod("newWord", null)
+        
+        // Use a slight delay to ensure Flutter is ready
+        Handler(Looper.getMainLooper()).postDelayed({
+            try {
+                // Invoke Dart callback to refresh word and start listening
+                channel.invokeMethod("newWord", null)
+            } catch (e: Exception) {
+                Log.e("VocabLock", "Error invoking newWord from onNewIntent: ${e.message}")
+            }
+        }, 300)
     }
 
     private fun unlockDevice() {
@@ -156,19 +195,37 @@ class MainActivity: FlutterActivity() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
                 setShowWhenLocked(true)
                 setTurnScreenOn(true)
+                
+                // On Android P and above, also dismiss keyguard
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+                    if (keyguardManager.isKeyguardLocked) {
+                        keyguardManager.requestDismissKeyguard(this, null)
+                    }
+                }
             } else {
                 try {
                     @Suppress("DEPRECATION")
-                    val SHOW_WHEN_LOCKED = 0x00000080 // WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
-                    val TURN_SCREEN_ON = 0x00200000 // WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
                     window.addFlags(
-                        SHOW_WHEN_LOCKED or
-                        TURN_SCREEN_ON or
+                        WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
+                        WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
                         WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
                     )
                 } catch (e: Exception) {
                     Log.e("VocabLock", "Error setting window flags: ${e.message}")
                 }
+            }
+            
+            // Set window to be shown on top of others
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                window.attributes.layoutInDisplayCutoutMode = 
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+            
+            // Prevent user from going home with system gestures
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.setDecorFitsSystemWindows(false)
             }
             
             // Increase screen brightness
